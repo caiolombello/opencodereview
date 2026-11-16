@@ -4,8 +4,10 @@
 //! the benchmark's format. It has no HTTP API and never talks to GitHub.
 
 mod export;
+mod github;
 mod reviewbench;
 
+pub use github::run_from_env as run_github;
 pub use reviewbench::run_from_env as run_reviewbench;
 
 use std::path::{Path, PathBuf};
@@ -113,6 +115,19 @@ pub(crate) fn review(
     deadline: Duration,
     budget: Arc<review::budget::Budget>,
 ) -> Result<Reviewed, String> {
+    let inputs = prepare(db, repo, pr, archive_dir, budget)?;
+    run(db, &inputs, deadline)
+}
+
+/// Records `pr` as the run's only repository, pull request and review run, and returns the
+/// pipeline inputs that review it from the clone at `repo`.
+pub(crate) fn prepare(
+    db: &Db,
+    repo: &Path,
+    pr: &PullRequest,
+    archive_dir: PathBuf,
+    budget: Arc<review::budget::Budget>,
+) -> Result<review::ReviewInputs, String> {
     let database = db.open()?;
     let conn = db.connection()?;
     let now = crate::sandbox::now();
@@ -200,7 +215,13 @@ pub(crate) fn review(
         // starts on.
         engines: Some(Arc::new(crate::review::PinnedEngines::current(&database)?)),
     };
-    drop(database);
+    Ok(inputs)
+}
+
+/// Runs the review `inputs` describe, cancelling it after `deadline`.
+pub(crate) fn run(db: &Db, inputs: &review::ReviewInputs, deadline: Duration) -> Result<Reviewed, String> {
+    let run_id = inputs.run_id;
+    let engine = engine_label(db, &db.open()?.pick_ai_account(&[])?.ok_or("The benchmark account is missing")?.provider)?;
     let cancel = Arc::new(AtomicBool::new(false));
     let finished = Arc::new(AtomicBool::new(false));
     {
@@ -228,7 +249,7 @@ pub(crate) fn review(
             last = headline.to_string();
         }
     };
-    let result = review::execute(&inputs, &cancel, &mut progress);
+    let result = review::execute(inputs, &cancel, &mut progress);
     finished.store(true, Ordering::Relaxed);
     let engine = db
         .open()

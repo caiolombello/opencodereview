@@ -11,7 +11,14 @@
 # runner, as UID 10001, under the tool guard.
 set -eu
 
-: "${RB_OUT:?RB_OUT is required}"
+command=${1:-reviewbench}
+if [ "$command" = reviewbench ]; then
+  : "${RB_OUT:?RB_OUT is required}"
+fi
+# The GitHub token of `ocr-bench github` is for ocr-bench alone: the runner, the egress proxy and
+# the model never get it.
+gh_token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
+unset GH_TOKEN GITHUB_TOKEN
 pg_bin=$(echo /usr/lib/postgresql/*/bin)
 host=$(cat /etc/hostname)
 
@@ -67,9 +74,13 @@ else
   wait_for "$sockets"
 fi
 
+# The runner and the egress proxy are running by now, without it.
+if [ -n "$gh_token" ]; then
+  export GH_TOKEN="$gh_token"
+fi
 OCR_DATABASE_URL="host=/run/ocr-pg user=ocr dbname=opencodereview" \
 OCR_DATA_DIR=/ocr/data \
 OCR_REVIEW_CLAUDE_AUTH_DIR=/ocr/auth/app-managed \
 OCR_REVIEW_RUNNER_SOCKETS="$sockets" \
 TMPDIR=/ocr/tmp \
-  ocr-bench "${1:-reviewbench}"
+  ocr-bench "$command"

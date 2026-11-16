@@ -121,3 +121,22 @@ python3 bench/report.py \
   --martian-evaluations ../code-review-benchmark/offline/results/<judge>/evaluations.json \
   --aacr-metrics opencodereview-claude=../aacr-bench/evaluation/metrics/aacr_bench/ocr/opencodereview-claude/<metrics>.json
 ```
+
+## One-shot review on GitHub (prototype)
+
+`ocr-bench github` reviews one open pull request and publishes the result the way the server does, then exits. It uses the same image, sandbox and pipeline as the benchmark, and runs the server's publication code (`auto_post_mode = comment`) against the container's throwaway database. See [#109](https://github.com/BridgLabs/opencodereview/issues/109).
+
+```bash
+git clone https://github.com/<owner>/<repo> repo && git -C repo fetch origin pull/<number>/head
+docker run --rm -v "$PWD/repo:/work/repo:z" \
+  -e OCR_GITHUB_REPOSITORY=<owner>/<repo> -e OCR_PR_NUMBER=<number> \
+  -e GH_TOKEN -e CLAUDE_CODE_OAUTH_TOKEN \
+  opencodereview-bench:local github
+```
+
+- **Base and head** come from GitHub. Both commits must be in the checkout.
+- **`GH_TOKEN`** needs to read the pull request and to write reviews and issue comments. The entry point passes it to `ocr-bench` only: the runner, the egress proxy and the model never get it.
+- **What gets posted:** findings go out as a comment review with inline comments, and a clean review as the result comment. The PR summary comment is off.
+- **Repeat runs:** every run uses one fixed installation identity, so a repeat run updates the result comment and skips findings that are already posted. It still reviews the whole pull request: there is no incremental review without the database.
+- **Settings:** `OCR_PROVIDER`, `OCR_MODEL`, `OCR_EFFORT`, `OCR_MAX_FILES` and `OCR_DEADLINE_SECS`. Other settings keep the product defaults.
+- **Result:** printed as one JSON line, and written to `OCR_OUT` when it is set. The exit status is non-zero when the review fails or the result is not published.
