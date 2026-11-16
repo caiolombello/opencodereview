@@ -38,7 +38,10 @@ pub fn run_from_env() -> Result<(), String> {
 
     let live = crate::github::live_pr_state(&nwo, number)?;
     if live.state != "OPEN" {
-        return Err(format!("{nwo}#{number} is {}; only open pull requests are reviewed", live.state));
+        return Err(format!(
+            "{nwo}#{number} is {}; only open pull requests are reviewed",
+            live.state
+        ));
     }
     for (what, sha) in [("head", &live.head_sha), ("base", &live.base_sha)] {
         let found = std::process::Command::new("git")
@@ -75,7 +78,11 @@ pub fn run_from_env() -> Result<(), String> {
     }
     let deadline = Duration::from_secs(
         env("OCR_DEADLINE_SECS")
-            .map(|value| value.parse().map_err(|_| "OCR_DEADLINE_SECS must be a number of seconds"))
+            .map(|value| {
+                value
+                    .parse()
+                    .map_err(|_| "OCR_DEADLINE_SECS must be a number of seconds")
+            })
             .transpose()?
             .unwrap_or(DEFAULT_DEADLINE_SECS),
     );
@@ -146,7 +153,12 @@ pub fn run_from_env() -> Result<(), String> {
         usage.cache_creation_tokens,
         usage.model.as_deref(),
     )?;
-    if !database.finish_review_run(inputs.run_id, &output.body, output.comments_json.as_deref(), &done_phase)? {
+    if !database.finish_review_run(
+        inputs.run_id,
+        &output.body,
+        output.comments_json.as_deref(),
+        &done_phase,
+    )? {
         return Err("The review run was no longer running when it finished".into());
     }
     // The offline review records the base commit as its base; publication compares it with the live
@@ -157,8 +169,7 @@ pub fn run_from_env() -> Result<(), String> {
             crate::pg_params![inputs.run_id, live.base_ref],
         )
         .map_err(|error| error.to_string())?;
-    let has_findings =
-        crate::server::review_has_findings(output.comments_json.as_deref(), Some(&output.body));
+    let has_findings = crate::server::review_has_findings(output.comments_json.as_deref(), Some(&output.body));
     crate::server::handle_completed_review(&database, &inputs, output.no_new_changes, has_findings);
     let _ = database.finalize_review_coverage(inputs.run_id);
 
@@ -184,13 +195,21 @@ pub fn run_from_env() -> Result<(), String> {
     });
     println!("{report}");
     if let Some(path) = env("OCR_OUT") {
-        std::fs::write(&path, serde_json::to_vec_pretty(&report).map_err(|error| error.to_string())?)
-            .map_err(|error| format!("Could not write {path}: {error}"))?;
+        std::fs::write(
+            &path,
+            serde_json::to_vec_pretty(&report).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Could not write {path}: {error}"))?;
     }
     // `disabled` is the result comment the settings leave out: the server posts one only for a clean
     // review. Findings go out as the review itself.
     match result {
-        Some(result) if result.error_message.is_none() && matches!(result.publication_status.as_str(), "posted" | "disabled") => Ok(()),
+        Some(result)
+            if result.error_message.is_none()
+                && matches!(result.publication_status.as_str(), "posted" | "disabled") =>
+        {
+            Ok(())
+        }
         Some(result) => Err(format!(
             "The result was not published: {} ({})",
             result.publication_status,

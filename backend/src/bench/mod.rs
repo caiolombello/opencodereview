@@ -221,7 +221,13 @@ pub(crate) fn prepare(
 /// Runs the review `inputs` describe, cancelling it after `deadline`.
 pub(crate) fn run(db: &Db, inputs: &review::ReviewInputs, deadline: Duration) -> Result<Reviewed, String> {
     let run_id = inputs.run_id;
-    let engine = engine_label(db, &db.open()?.pick_ai_account(&[])?.ok_or("The benchmark account is missing")?.provider)?;
+    let engine = engine_label(
+        db,
+        &db.open()?
+            .pick_ai_account(&[])?
+            .ok_or("The benchmark account is missing")?
+            .provider,
+    )?;
     let cancel = Arc::new(AtomicBool::new(false));
     let finished = Arc::new(AtomicBool::new(false));
     {
