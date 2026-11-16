@@ -130,3 +130,5 @@ Do not add AI tool attribution (such as `Generated with` footers or AI `Co-Autho
 OpenCodeReview is licensed under the [PolyForm Small Business License 1.0.0](LICENSE). The maintainer also offers it under a commercial license to companies above its size limits.
 
 To offer both, the maintainer must own the copyright in all of the code. Every contributor signs the [Contributor Assignment Agreement](CLA.md) once, which assigns the copyright in their contributions to the maintainer. On your first pull request a bot asks you to sign it by replying with a comment, and pull requests can only be merged after that.
+
+A line for the clean one-shot fixture.
